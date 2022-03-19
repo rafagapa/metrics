@@ -17,7 +17,7 @@ class UdpLogsSender(
     private val host: InetAddress,
     private val port: Int,
     private val logger: Logger = NoopLogger(),
-    internal val bufferSize: Int = 65507 // Max size (imposed by underlying IP protocol) is 65,507
+    private val bufferSize: Int = 65507 // Max size (imposed by underlying IP protocol) is 65507
 ) : LogsSender {
 
     private val headerSize = 16                              // length of UUID
@@ -32,6 +32,9 @@ class UdpLogsSender(
     private var running = true
 
     init {
+        if (bufferSize > 65507) {
+            throw IllegalArgumentException("Invalid buffer size ($bufferSize), maximum UDP packet size is 65507")
+        }
         thread.start()
     }
 
@@ -43,7 +46,7 @@ class UdpLogsSender(
     private fun run() {
         try {
             DatagramSocket().use { socket ->
-                while (running) {
+                while (running || queue.peek() != null) {
                     val buffer = queue.take()
                     val packet = DatagramPacket(buffer.array(), buffer.position(), host, port)
                     socket.send(packet)

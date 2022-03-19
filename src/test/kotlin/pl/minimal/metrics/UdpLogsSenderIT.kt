@@ -16,6 +16,9 @@ class UdpLogsSenderIT : FunSpec() {
             TestReceiver(port).use { receiver ->
                 val guid = UUID.randomUUID()
                 val sender = UdpLogsSender(guid, InetAddress.getLocalHost(), port, logger = ConsoleLogger("sender"))
+                // Make sure receiver starts listening
+                Thread.sleep(100)
+
 
                 sender.send("jeden")
                 sender.send("dwa")
@@ -35,6 +38,8 @@ class UdpLogsSenderIT : FunSpec() {
             TestReceiver(port).use { receiver ->
                 val guid = UUID.randomUUID()
                 val sender = UdpLogsSender(guid, InetAddress.getLocalHost(), port, logger = ConsoleLogger("sender"))
+                // Make sure receiver starts listening
+                Thread.sleep(100)
 
                 val bigMessage = "X".repeat(sender.maxMessageSize)
                 sender.send(bigMessage)
@@ -71,11 +76,13 @@ class UdpLogsSenderIT : FunSpec() {
                 }
             }
         }
-        // todo: upewnić się co się stanie, jeśli będzie za duża wiadomość
+
         test("should drop message larger than buffer size") {
             TestReceiver(port).use { receiver ->
                 val guid = UUID.randomUUID()
                 val sender = UdpLogsSender(guid, InetAddress.getLocalHost(), port, logger = ConsoleLogger("sender"))
+                // Make sure receiver starts listening
+                Thread.sleep(100)
 
                 val maxMessage = "A".repeat(sender.maxMessageSize)
                 sender.send(maxMessage)
