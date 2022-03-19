@@ -39,10 +39,17 @@ class TestReceiver(private val port: Int = 4445, private val logger: ConsoleLogg
             } else {
                 logger.info("Received from ${packet.address}:${packet.port}, length: ${packet.length}")
                 buffer.position(packet.offset)
-                val uuid = UUID(buffer.long, buffer.long)
-                val message = String(packet.data, packet.offset + 16, packet.length - 16)
-                logger.info("Received message: $message")
-                results.add(uuid to message)
+                buffer.limit(packet.length - packet.offset)
+                val magic = buffer.int
+                if (magic == MAGIC_NUMBER) {
+                    val uuid = UUID(buffer.long, buffer.long)
+                    val message = String(buffer.array(), buffer.position(), buffer.remaining())
+                    logger.info("Received message: $message")
+                    results.add(uuid to message)
+                } else {
+                    logger.info("Received invalid from ${packet.address}:${packet.port}, invalid header (expected: %h, got %h)"
+                        .format(MAGIC_NUMBER, magic))
+                }
             }
 
         }
