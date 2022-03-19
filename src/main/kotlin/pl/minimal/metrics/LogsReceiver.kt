@@ -29,14 +29,6 @@ class LogsReceiver(
     private val logger: ConsoleLogger = ConsoleLogger("receiver")
 ) : Runnable, AutoCloseable {
 
-    private val thread = Thread(this, "receiver").also { it.start() }
-
-    @Volatile
-    private var running = true
-
-    @Volatile
-    private var sock: DatagramSocket? = null
-
     private val base = File(path).also {
         if (!it.exists()) {
             if (it.mkdirs()) {
@@ -53,6 +45,14 @@ class LogsReceiver(
         }
         logger.info("Base path: ${it.absolutePath}")
     }
+
+    private val thread = Thread(this, "receiver").also { it.start() }
+
+    @Volatile
+    private var running = true
+
+    @Volatile
+    private var sock: DatagramSocket? = null
 
     override fun run() {
         logger.info("Started, port: $port")
