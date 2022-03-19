@@ -2,8 +2,6 @@ package pl.minimal.metrics
 
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.nio.ByteBuffer
-import java.util.UUID
 
 private var running = true
 
@@ -20,9 +18,4 @@ fun main() {
         val message = String(packet.data, packet.offset, packet.length)
         print(message)
     }
-}
-
-fun getUuid() {
-
-
 }

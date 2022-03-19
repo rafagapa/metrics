@@ -7,24 +7,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
-class Receiver(private val port: Int, private val path: String, private val logger: Logger = Logger("receiver")) {
-    private var running = true
-
-    fun run() {
-        val socket = DatagramSocket(port)
-        // Max size (imposed by underlying IP protocol is 65,507, but let's round up
-        val buf = ByteArray(65535)
-        val packet = DatagramPacket(buf, buf.size)
-        while (running) {
-            socket.receive(packet)
-            //println("Received from ${packet.address}:${packet.port}, length: ${packet.length}")
-            val message = String(packet.data, packet.offset, packet.length)
-            print(message)
-        }
-    }
-}
-
-class TestReceiver(private val port: Int = 4445, private val logger: Logger = Logger("receiver")) : Runnable {
+class TestReceiver(private val port: Int = 4445, private val logger: ConsoleLogger = ConsoleLogger("receiver")) : Runnable, AutoCloseable {
     private val thread = Thread(this, "receiver").also { it.start() }
 
     @Volatile
@@ -67,7 +50,7 @@ class TestReceiver(private val port: Int = 4445, private val logger: Logger = Lo
         sock = null
     }
 
-    fun stop() {
+    override fun close() {
         logger.info("Stopping")
         running = false
         // thread.interrupt doesn't interrupt thread blocked on socket, the only way is to close the socket

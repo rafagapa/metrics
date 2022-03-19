@@ -5,6 +5,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.UUID
+import java.util.concurrent.ArrayBlockingQueue
 
 interface LogsSender {
     fun send(msg: String)
@@ -15,94 +16,76 @@ class UdpLogsSender(
     private val guid: UUID,
     private val host: InetAddress,
     private val port: Int,
-    private val logger: Logger = Logger("sender")
-) : LogsSender, Runnable {
+    private val logger: Logger = NoopLogger(),
+    internal val bufferSize: Int = 65507 // Max size (imposed by underlying IP protocol) is 65,507
+) : LogsSender {
 
-    private var lastSentMs = 0L
-    private val maxIntervalMs = 1000L
+    private val headerSize = 16                              // length of UUID
+    internal val maxMessageSize = bufferSize - headerSize -1 // minus one for newline character
+    private val newline: Byte = 0x0A                         // '\n'.toByte() is deprecated
 
-    // Using char '\n' would put extra character in the buffer, '\n'.toByte() is deprecated
-    private val newline: Byte = 0x0A
+    private val thread = Thread(this::run, "logs-sender")
+    private var buffer = createBuffer()
+    private val queue = ArrayBlockingQueue<ByteBuffer>(2)
 
     @Volatile
     private var running = true
 
-    // Max size (imposed by underlying IP protocol) is 65,507
-    private val first = ByteBuffer.allocate(65507)
-    private val second = ByteBuffer.allocate(65507)
-
-    private data class Buffers(val send: ByteBuffer, val write: ByteBuffer) {
-        fun swap() = Buffers(write, send)
-    }
-
-    @Volatile
-    private var buffers = Buffers(first, second)
-
-    private val thread = Thread(this, "logs-sender").also { it.start() }
-
-    private fun swap() {
-        buffers = buffers.swap()
-    }
-
     init {
-        prepareWriteBuffer(buffers.write)
-        prepareWriteBuffer(buffers.send)
+        thread.start()
+    }
+
+    private fun createBuffer() = ByteBuffer.allocate(bufferSize).also {
+        it.putLong(guid.mostSignificantBits)
+        it.putLong(guid.leastSignificantBits)
+    }
+
+    private fun run() {
+        try {
+            DatagramSocket().use { socket ->
+                while (running) {
+                    val buffer = queue.take()
+                    val packet = DatagramPacket(buffer.array(), buffer.position(), host, port)
+                    socket.send(packet)
+                    logger.info("Sent ${buffer.position()} bytes to $host, port: $port")
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Thread failed, ${e.javaClass.simpleName}: ${e.message}")
+        } finally {
+            // to make sure queue is no longer flooded with data
+            running = false
+        }
     }
 
     override fun send(msg: String) {
-        if (running) {
-            val bytes = msg.toByteArray()
-            if (buffers.write.remaining() > bytes.size) {
-                buffers.write.put(bytes)
-                buffers.write.put(newline)
-                logger.trace("Written message: $msg, write buffer position: ${buffers.write.position()}")
-            } else {
-                logger.warn("Write buffer is full (remaining: ${buffers.write.remaining()}), dropping message: $msg")
-            }
-        } else {
-            logger.warn("Running is false, dropping message: $msg")
+        if (!running) {
+            logger.warn("Message dropped, thread is no longer running, message: $msg")
+            return
         }
+        val bytes = msg.toByteArray()
+        if (bytes.size > maxMessageSize) {
+            logger.warn("Message dropped, message size (${bytes.size}) is larger than max message size ($maxMessageSize)")
+            return
+        }
+        val required = bytes.size + 1 // one extra fo end of line
+        if (buffer.remaining() < required) {
+            if (!queue.offer(buffer)) {
+                logger.warn("Failed to push buffer to queue, dropping message: $msg")
+                return
+            }
+            buffer = createBuffer()
+        }
+        buffer.put(bytes)
+        buffer.put(newline)
     }
 
     override fun close() {
-        logger.info("Closing")
-        running = false
-        thread.interrupt()
-    }
-
-    override fun run() {
-        DatagramSocket().use { socket ->
-            logger.info("Started, address: $host, port: $port")
-            while (running) {
-                try {
-                    Thread.sleep(100)
-                } catch (e: InterruptedException) {
-                    // do nothing, just try to send the last chunk
-                    logger.info("Interrupted, we are probably about to close")
-                }
-                val elapsedMs = System.currentTimeMillis() - lastSentMs
-                if (buffers.write.position() > 16 &&
-                    (
-                            buffers.write.position() > buffers.write.capacity() / 2 ||
-                                    elapsedMs > maxIntervalMs ||
-                                    !running // last run before closing, send what's remaining
-                            )
-                ) {
-                    logger.info("Sending, write buffer position: ${buffers.write.position()}, last sent: ${elapsedMs / 1000}s ago, running: $running")
-                    swap()
-                    val packet = DatagramPacket(buffers.send.array(), buffers.send.position(), host, port)
-                    socket.send(packet)
-                    // prepare send buffer to be used in place of write buffer
-                    prepareWriteBuffer(buffers.send)
-                    lastSentMs = System.currentTimeMillis()
-                }
+        if (buffer.position() > headerSize) {
+            if (!queue.offer(buffer)) {
+                logger.warn("Failed to push buffer to queue, dropping ${buffer.position()} bytes")
             }
         }
-    }
-
-    private fun prepareWriteBuffer(buffer: ByteBuffer) {
-        buffer.clear()
-        buffer.putLong(guid.mostSignificantBits)
-        buffer.putLong(guid.leastSignificantBits)
+        running = false
     }
 }
