@@ -7,7 +7,6 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 
-const val MAGIC_NUMBER: Int = 0x2cc9f0ca
 
 interface LogsSender {
     fun send(msg: String)
@@ -22,8 +21,8 @@ class UdpLogsSender(
     private val bufferSize: Int = 65507 // Max size (imposed by underlying IP protocol) is 65507
 ) : LogsSender {
 
-    private val headerSize = 20                              // length of MAGIC_NUMBER + UUID
-    internal val maxMessageSize = bufferSize - headerSize -1 // minus one for newline character
+
+    internal val maxMessageSize = bufferSize - HEADER_SIZE -1 // minus one for newline character
     private val newline: Byte = 0x0A                         // '\n'.toByte() is deprecated
 
     private val thread = Thread(this::run, "logs-sender")
@@ -87,11 +86,16 @@ class UdpLogsSender(
     }
 
     override fun close() {
-        if (buffer.position() > headerSize) {
+        if (buffer.position() > HEADER_SIZE) {
             if (!queue.offer(buffer)) {
                 logger.warn("Failed to push buffer to queue, dropping ${buffer.position()} bytes")
             }
         }
         running = false
+    }
+
+    companion object {
+        const val MAGIC_NUMBER: Int = 0x2cc9f0ca
+        internal const val HEADER_SIZE = 20  // length of MAGIC_NUMBER + UUID
     }
 }

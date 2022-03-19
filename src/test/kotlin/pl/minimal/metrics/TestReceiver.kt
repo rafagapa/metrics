@@ -1,5 +1,6 @@
 package pl.minimal.metrics
 
+import pl.minimal.metrics.UdpLogsSender.Companion.MAGIC_NUMBER
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.SocketException
@@ -7,7 +8,8 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
-class TestReceiver(private val port: Int = 4445, private val logger: ConsoleLogger = ConsoleLogger("receiver")) : Runnable, AutoCloseable {
+class TestReceiver(private val port: Int = 4445, private val logger: ConsoleLogger = ConsoleLogger("receiver")) :
+    Runnable, AutoCloseable {
     private val thread = Thread(this, "receiver").also { it.start() }
 
     @Volatile
@@ -34,24 +36,21 @@ class TestReceiver(private val port: Int = 4445, private val logger: ConsoleLogg
                 logger.info("Socket closed, we are about to stop: ${e.message}")
                 break
             }
-            if (packet.length < 16) {
-                logger.info("Received invalid from ${packet.address}:${packet.port}, length: ${packet.length}, dropping")
+            logger.info("Received from ${packet.address}:${packet.port}, length: ${packet.length}")
+            buffer.position(packet.offset)
+            buffer.limit(packet.length - packet.offset)
+            val magic = buffer.int
+            if (magic == MAGIC_NUMBER) {
+                val uuid = UUID(buffer.long, buffer.long)
+                val message = String(buffer.array(), buffer.position(), buffer.remaining())
+                logger.info("Received message: $message")
+                results.add(uuid to message)
             } else {
-                logger.info("Received from ${packet.address}:${packet.port}, length: ${packet.length}")
-                buffer.position(packet.offset)
-                buffer.limit(packet.length - packet.offset)
-                val magic = buffer.int
-                if (magic == MAGIC_NUMBER) {
-                    val uuid = UUID(buffer.long, buffer.long)
-                    val message = String(buffer.array(), buffer.position(), buffer.remaining())
-                    logger.info("Received message: $message")
-                    results.add(uuid to message)
-                } else {
-                    logger.info("Received invalid from ${packet.address}:${packet.port}, invalid header (expected: %h, got %h)"
-                        .format(MAGIC_NUMBER, magic))
-                }
+                logger.info(
+                    "Received invalid from ${packet.address}:${packet.port}, invalid header (expected: %h, got %h)"
+                        .format(MAGIC_NUMBER, magic)
+                )
             }
-
         }
         sock?.close()
         sock = null
