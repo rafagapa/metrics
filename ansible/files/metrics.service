@@ -1,0 +1,22 @@
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/share/metrics
+User=ansible
+Group=ansible
+ExecStart=/usr/bin/java \
+    -Xms128M -Xmx128M \
+    -jar /usr/share/metrics/metrics.jar \
+    /var/metrics
+KillMode=mixed
+KillSignal=SIGTERM
+SuccessExitStatus=143
+
+TimeoutSec=1m
+RestartSec=60
+Restart=always

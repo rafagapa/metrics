@@ -1,0 +1,28 @@
+- hosts: hosts
+  become: true
+  gather_facts: no
+  tasks:
+    - name: Create directories
+      file:
+        path: "{{ item}}"
+        state: directory
+        mode: "0755"
+        owner: ansible
+      with_items:
+        - /usr/share/metrics
+        - /var/metrics
+    - name: Copy metrics.jar to /usr/share/metrics
+      copy:
+        src: ../target/metrics-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+        dest: /usr/share/metrics/metrics.jar
+        mode: "0644"
+    - name: Create metrics systemd service
+      copy:
+        src: metrics.service
+        dest: /etc/systemd/system/metrics.service
+    - name: Enable & (re)start metrics service
+      systemd:
+        daemon_reload: yes
+        state: restarted
+        enabled: yes
+        name: metrics
