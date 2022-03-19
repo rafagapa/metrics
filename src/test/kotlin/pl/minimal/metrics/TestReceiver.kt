@@ -43,7 +43,6 @@ class TestReceiver(private val port: Int = 4445, private val logger: ConsoleLogg
             if (magic == MAGIC_NUMBER) {
                 val uuid = UUID(buffer.long, buffer.long)
                 val message = String(buffer.array(), buffer.position(), buffer.remaining())
-                logger.info("Received message: $message")
                 results.add(uuid to message)
             } else {
                 logger.info(

@@ -1,5 +1,6 @@
 package pl.minimal.metrics
 
+import io.kotest.common.ExperimentalKotest
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -8,7 +9,8 @@ import java.net.InetAddress
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 
-class UdpLogsSenderIT : FunSpec() {
+@OptIn(ExperimentalKotest::class)
+class UdpLogsSenderTest : FunSpec() {
     private val port = 5000
 
     init {
@@ -18,7 +20,6 @@ class UdpLogsSenderIT : FunSpec() {
                 val sender = UdpLogsSender(guid, InetAddress.getLocalHost(), port, logger = ConsoleLogger("sender"))
                 // Make sure receiver starts listening
                 Thread.sleep(100)
-
 
                 sender.send("jeden")
                 sender.send("dwa")
