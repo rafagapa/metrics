@@ -8,6 +8,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.SocketException
 import java.nio.ByteBuffer
+import java.time.LocalDateTime
 import java.util.UUID
 import kotlin.system.exitProcess
 
@@ -98,6 +99,7 @@ class LogsReceiver(
     private fun write(guid: UUID, buffer: ByteBuffer) {
         val file = File(base, guid.toString())
         FileOutputStream(file, true).use {
+            it.write(("# " + LocalDateTime.now() + "\n").toByteArray())
             it.write(buffer.array(), buffer.position(), buffer.remaining())
         }
     }
