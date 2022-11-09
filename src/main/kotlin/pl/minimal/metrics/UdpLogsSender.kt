@@ -73,10 +73,10 @@ class UdpLogsSender(
             logger.warn("Message dropped, message size (${bytes.size}) is larger than max message size ($maxMessageSize)")
             return
         }
-        val required = bytes.size + 1 // one extra fo end of line
+        val required = bytes.size + 1 // one extra for end of line
         if (buffer.remaining() < required) {
             if (!queue.offer(buffer)) {
-                logger.warn("Failed to push buffer to queue, dropping message: $msg")
+                logger.warn("Failed to push buffer to queue, dropping buffer (${buffer.position()} bytes), dropping message: $msg")
                 return
             }
             buffer = createBuffer()
