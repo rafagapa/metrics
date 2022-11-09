@@ -8,8 +8,10 @@ import kotlin.random.Random
 private var running = true
 
 fun main() {
+    val port = 4445
+    val receiver = LogsReceiver(4445, LogsFileWriter("/tmp/metrics/"))
     val senders = (0 until 100).map { UUID.randomUUID() }.map { guid ->
-        guid to UdpLogsSender(guid, InetAddress.getLocalHost(), 4445)
+        guid to UdpLogsSender(guid, InetAddress.getLocalHost(), port)
     }
     while (running) {
         val (guid, sender) = senders.random()
@@ -19,5 +21,6 @@ fun main() {
     Runtime.getRuntime().addShutdownHook(Thread {
         running = false
         senders.forEach { it.second.close() }
+        receiver.close()
     })
 }
