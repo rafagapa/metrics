@@ -21,7 +21,6 @@ class UdpLogsSender(
     private val bufferSize: Int = 65507 // Max size (imposed by underlying IP protocol) is 65507
 ) : LogsSender {
 
-
     internal val maxMessageSize = bufferSize - HEADER_SIZE -1 // minus one for newline character
     private val newline: Byte = 0x0A                         // '\n'.toByte() is deprecated
 

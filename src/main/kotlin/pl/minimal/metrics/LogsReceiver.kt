@@ -2,50 +2,17 @@ package pl.minimal.metrics
 
 import pl.minimal.metrics.UdpLogsSender.Companion.HEADER_SIZE
 import pl.minimal.metrics.UdpLogsSender.Companion.MAGIC_NUMBER
-import java.io.File
-import java.io.FileOutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.SocketException
 import java.nio.ByteBuffer
-import java.time.LocalDateTime
 import java.util.UUID
-import kotlin.system.exitProcess
-
-fun main(args: Array<String>) {
-    if (args.isEmpty()) {
-        println("Missing base path for log files")
-        exitProcess(1)
-    }
-    val receiver = LogsReceiver(path = args[0])
-    val shutdown = Thread{
-        receiver.close()
-    }.also { it.name = "shutdown-hook" }
-    Runtime.getRuntime().addShutdownHook(shutdown)
-}
 
 class LogsReceiver(
     private val port: Int = 4445,
-    path: String,
+    private val handler: LogsHandler,
     private val logger: ConsoleLogger = ConsoleLogger("receiver")
 ) : Runnable, AutoCloseable {
-
-    private val base = File(path).also {
-        if (!it.exists()) {
-            if (it.mkdirs()) {
-                logger.info("Created base directory ${it.absolutePath}")
-            } else {
-                throw IllegalStateException("Failed to create base directory: ${it.absolutePath}")
-            }
-        }
-        if (!it.isDirectory) {
-            throw IllegalStateException("Base path is not a directory: ${it.absolutePath}")
-        }
-        if (!it.canWrite()) {
-            throw IllegalStateException("Don't have write access to base path: ${it.absolutePath}")
-        }
-        logger.info("Base path: ${it.absolutePath}")
-    }
 
     private val thread = Thread(this, "receiver").also { it.start() }
 
@@ -81,7 +48,7 @@ class LogsReceiver(
                 val magic = buffer.int
                 if (magic == MAGIC_NUMBER) {
                     val uuid = UUID(buffer.long, buffer.long)
-                    write(uuid, buffer)
+                    handler.write(uuid, buffer)
                 } else {
                     logger.info(
                         "Received invalid from ${packet.address}:${packet.port}, invalid header (expected: %h, got %h)"
@@ -94,14 +61,6 @@ class LogsReceiver(
         sock?.close()
         sock = null
         logger.info("Stopped")
-    }
-
-    private fun write(guid: UUID, buffer: ByteBuffer) {
-        val file = File(base, guid.toString())
-        FileOutputStream(file, true).use {
-            it.write(("# " + LocalDateTime.now() + "\n").toByteArray())
-            it.write(buffer.array(), buffer.position(), buffer.remaining())
-        }
     }
 
     override fun close() {
