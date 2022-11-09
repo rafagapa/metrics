@@ -21,6 +21,12 @@ class UdpLogsSenderTest : FunSpec() {
 
     private val localhost = InetAddress.getLocalHost()
 
+    private suspend fun expect(vararg list: Pair<UUID, String>) {
+        eventually(0.4.seconds) {
+            collector.results.toList() shouldBe list.toList()
+        }
+    }
+
     init {
         beforeEach { collector.results.clear() }
         afterSpec { receiver.close() }
@@ -35,11 +41,9 @@ class UdpLogsSenderTest : FunSpec() {
 
             // Buffer will be flushed on close
             sender.close()
-            eventually(1.seconds) {
-                collector.results.toList() shouldBe listOf(
-                    guid to "jeden\ndwa\n"
-                )
-            }
+            expect(
+                guid to "#0: jeden\ndwa\n"
+            )
         }
 
         test("should flush buffer if there is no space for message") {
@@ -49,36 +53,31 @@ class UdpLogsSenderTest : FunSpec() {
             val bigMessage = "X".repeat(sender.maxMessageSize)
             sender.send(bigMessage)
             sender.send("jeden")
-            eventually(1.seconds) {
-                collector.results.toList() shouldBe listOf(
-                    guid to bigMessage + "\n"
-                )
-            }
+            expect(
+                guid to "#0: $bigMessage\n"
+            )
+
             sender.send(bigMessage)
-            eventually(1.seconds) {
-                collector.results.toList() shouldBe listOf(
-                    guid to bigMessage + "\n",
-                    guid to "jeden\n"
-                )
-            }
+            expect(
+                guid to "#0: $bigMessage\n",
+                guid to "#1: jeden\n",
+            )
+
             sender.send("dwa")
-            eventually(1.seconds) {
-                collector.results.toList() shouldBe listOf(
-                    guid to bigMessage + "\n",
-                    guid to "jeden\n",
-                    guid to bigMessage + "\n"
-                )
-            }
+            expect(
+                guid to "#0: $bigMessage\n",
+                guid to "#1: jeden\n",
+                guid to "#2: $bigMessage\n",
+            )
+
             // Buffer will be flushed on close
             sender.close()
-            eventually(1.seconds) {
-                collector.results.toList() shouldBe listOf(
-                    guid to bigMessage + "\n",
-                    guid to "jeden\n",
-                    guid to bigMessage + "\n",
-                    guid to "dwa\n"
-                )
-            }
+            expect(
+                guid to "#0: $bigMessage\n",
+                guid to "#1: jeden\n",
+                guid to "#2: $bigMessage\n",
+                guid to "#3: dwa\n"
+            )
         }
 
         test("should drop message larger than buffer size") {
@@ -91,13 +90,10 @@ class UdpLogsSenderTest : FunSpec() {
             sender.send(tooBigMessage)
             sender.send("jeden")
             sender.close()
-            eventually(1.seconds) {
-                collector.results.size shouldBe 2
-                collector.results.toList() shouldBe listOf(
-                    guid to maxMessage + "\n",
-                    guid to "jeden\n"
-                )
-            }
+            expect(
+                guid to "#0: $maxMessage\n",
+                guid to "#1: jeden\n"
+            )
         }
     }
 }

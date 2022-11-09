@@ -1,5 +1,7 @@
 package pl.minimal.metrics
 
+import pl.minimal.metrics.sender.Counter
+import pl.minimal.metrics.sender.SimpleCounter
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -18,10 +20,11 @@ class UdpLogsSender(
     private val host: InetAddress,
     private val port: Int,
     private val logger: Logger = NoopLogger(),
+    private val counter: Counter = SimpleCounter(),
     private val bufferSize: Int = 65507 // Max size (imposed by underlying IP protocol) is 65507
 ) : LogsSender {
 
-    internal val maxMessageSize = bufferSize - HEADER_SIZE -1 // minus one for newline character
+    internal val maxMessageSize = bufferSize - HEADER_SIZE - 1 // minus one for newline character
     private val newline: Byte = 0x0A                         // '\n'.toByte() is deprecated
 
     private val thread = Thread(this::run, "logs-sender")
@@ -42,6 +45,7 @@ class UdpLogsSender(
         it.putInt(MAGIC_NUMBER)
         it.putLong(guid.mostSignificantBits)
         it.putLong(guid.leastSignificantBits)
+        it.putInt(counter.next())
     }
 
     private fun run() {
@@ -52,6 +56,7 @@ class UdpLogsSender(
                     val packet = DatagramPacket(buffer.array(), buffer.position(), host, port)
                     socket.send(packet)
                     logger.info("Sent ${buffer.position()} bytes to $host, port: $port")
+                    counter.commit(buffer.getInt(SIZE_POSITION))
                 }
             }
         } catch (e: Exception) {
@@ -95,6 +100,10 @@ class UdpLogsSender(
 
     companion object {
         const val MAGIC_NUMBER: Int = 0x2cc9f0ca
-        internal const val HEADER_SIZE = 20  // length of MAGIC_NUMBER + UUID
+        internal const val HEADER_SIZE = Int.SIZE_BYTES + // magic number
+                2 * Long.SIZE_BYTES +  // UUID
+                Int.SIZE_BYTES // counter
+        const val SIZE_POSITION = Int.SIZE_BYTES + // magic number
+                2 * Long.SIZE_BYTES  // UUID
     }
 }

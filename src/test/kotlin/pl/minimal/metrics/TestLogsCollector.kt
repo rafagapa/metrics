@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 class TestLogsCollector : LogsHandler {
     val results = ConcurrentLinkedQueue<Pair<UUID, String>>()
 
-    override fun write(guid: UUID, buffer: ByteBuffer) {
+    override fun write(guid: UUID, counter: Int, buffer: ByteBuffer) {
         val message = String(buffer.array(), buffer.position(), buffer.remaining())
-        results.add(guid to message)
+        results.add(guid to "#$counter: $message")
     }
 }

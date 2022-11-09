@@ -7,7 +7,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 interface LogsHandler {
-    fun write(guid: UUID, buffer: ByteBuffer)
+    fun write(guid: UUID, counter: Int, buffer: ByteBuffer)
 }
 
 class LogsFileWriter(
@@ -31,10 +31,10 @@ class LogsFileWriter(
         logger.info("Base path: ${it.absolutePath}")
     }
 
-    override fun write(guid: UUID, buffer: ByteBuffer) {
+    override fun write(guid: UUID, counter: Int, buffer: ByteBuffer) {
         val file = File(base, guid.toString())
         FileOutputStream(file, true).use {
-            it.write(("# " + LocalDateTime.now() + "\n").toByteArray())
+            it.write(("# " + LocalDateTime.now() + " (counter: $counter)\n").toByteArray())
             it.write(buffer.array(), buffer.position(), buffer.remaining())
         }
     }

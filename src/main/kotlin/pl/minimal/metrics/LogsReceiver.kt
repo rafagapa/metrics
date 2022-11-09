@@ -48,7 +48,8 @@ class LogsReceiver(
                 val magic = buffer.int
                 if (magic == MAGIC_NUMBER) {
                     val uuid = UUID(buffer.long, buffer.long)
-                    handler.write(uuid, buffer)
+                    val counter = buffer.int
+                    handler.write(uuid, counter, buffer)
                 } else {
                     logger.info(
                         "Received invalid from ${packet.address}:${packet.port}, invalid header (expected: %h, got %h)"
